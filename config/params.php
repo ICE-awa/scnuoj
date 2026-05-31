@@ -20,4 +20,5 @@ return [
     // Configure trusted reverse proxies here before enabling exam IP restrictions.
     // Example: ['172.18.0.0/16' => ['X-Forwarded-For']]
     'trustedHosts' => [],
+    'examLabCidr' => '10.191.0.0/16',
 ];

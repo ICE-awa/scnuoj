@@ -35,6 +35,7 @@ use yii\db\IntegrityException;
 class ExamLoginGuard extends ActiveRecord
 {
     const LAB_CIDR = '10.191.0.0/16';
+    const ACTIVE_CONTEST_CACHE_DURATION = 10;
 
     const STATUS_ALLOWED = 1;
     const STATUS_PENDING = 2;
@@ -133,14 +134,18 @@ class ExamLoginGuard extends ActiveRecord
             return self::$_activeContests[$cacheKey] = null;
         }
 
-        $contest = Contest::findOne($contestId);
+        $contest = Yii::$app->db->cache(function () use ($contestId) {
+            return Contest::findOne($contestId);
+        }, self::ACTIVE_CONTEST_CACHE_DURATION);
         if ($contest === null || $contest->getRunStatus() != Contest::STATUS_RUNNING) {
             return self::$_activeContests[$cacheKey] = null;
         }
 
-        $inContest = ContestUser::find()
-            ->where(['contest_id' => $contest->id, 'user_id' => $user->id])
-            ->exists();
+        $inContest = Yii::$app->db->cache(function () use ($contest, $user) {
+            return ContestUser::find()
+                ->where(['contest_id' => $contest->id, 'user_id' => $user->id])
+                ->exists();
+        }, self::ACTIVE_CONTEST_CACHE_DURATION);
 
         return self::$_activeContests[$cacheKey] = ($inContest ? $contest : null);
     }
@@ -308,7 +313,12 @@ class ExamLoginGuard extends ActiveRecord
 
     public static function isLabIp($ip)
     {
-        return self::ipInCidr($ip, self::LAB_CIDR);
+        return self::ipInCidr($ip, self::getLabCidr());
+    }
+
+    public static function getLabCidr()
+    {
+        return Yii::$app->params['examLabCidr'] ?? self::LAB_CIDR;
     }
 
     protected static function findOrCreate($contestId, $userId)
@@ -349,7 +359,9 @@ class ExamLoginGuard extends ActiveRecord
             return false;
         }
 
-        list($subnet, $bits) = explode('/', $cidr);
+        $parts = explode('/', $cidr, 2);
+        $subnet = $parts[0];
+        $bits = $parts[1] ?? 32;
         $bits = intval($bits);
         if ($bits < 0 || $bits > 32 || !self::isValidIp($subnet)) {
             return false;

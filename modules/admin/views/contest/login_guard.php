@@ -17,7 +17,7 @@ $this->title = $model->title . ' - 登录管控';
 
     <div class="alert alert-light">
         <i class="fas fa-fw fa-info-circle"></i>
-        考试模式下，参赛用户首次登录必须来自 <?= Html::encode(ExamLoginGuard::LAB_CIDR) ?>。非机房网段、退出后再次登录、或 IP 变更都会被阻止并等待管理员批准。
+        考试模式下，参赛用户首次登录必须来自 <?= Html::encode(ExamLoginGuard::getLabCidr()) ?>。非机房网段、退出后再次登录、或 IP 变更都会被阻止并等待管理员批准。
     </div>
 
     <?= Html::beginForm(['login-guard', 'id' => $model->id], 'get') ?>
