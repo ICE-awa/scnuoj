@@ -12,6 +12,7 @@ use yii\filters\VerbFilter;
 use yii\db\Expression;
 use app\components\AccessRule;
 use app\models\ContestAnnouncement;
+use app\models\ExamLoginGuard;
 use app\models\User;
 use app\models\ContestUser;
 use app\models\Problem;
@@ -38,6 +39,8 @@ class ContestController extends Controller
                 'class' => VerbFilter::class,
                 'actions' => [
                     'delete' => ['post'],
+                    'approve-login' => ['post'],
+                    'reject-login' => ['post'],
                 ],
             ],
             'access' => [
@@ -516,7 +519,63 @@ class ContestController extends Controller
     }
 
     /**
-     * 下载比赛期间提交记录
+     * Exam login guard.
+     */
+    public function actionLoginGuard($id)
+    {
+        $model = $this->findModel($id);
+        $query = ExamLoginGuard::find()
+            ->where(['contest_id' => $model->id])
+            ->with(['user', 'handler'])
+            ->orderBy([
+                '{{%exam_login_guard}}.status' => SORT_ASC,
+                '{{%exam_login_guard}}.updated_at' => SORT_DESC,
+                '{{%exam_login_guard}}.id' => SORT_DESC,
+            ]);
+
+        $username = trim(Yii::$app->request->get('username', ''));
+        if ($username !== '') {
+            $query->joinWith('user')
+                ->andWhere(['or',
+                    ['like', '{{%user}}.username', $username],
+                    ['like', '{{%user}}.nickname', $username],
+                ]);
+        }
+
+        $dataProvider = new ActiveDataProvider([
+            'query' => $query,
+            'pagination' => [
+                'pageSize' => 100
+            ]
+        ]);
+
+        return $this->render('login_guard', [
+            'model' => $model,
+            'dataProvider' => $dataProvider,
+            'username' => $username,
+        ]);
+    }
+
+    public function actionApproveLogin($id, $guardId)
+    {
+        $this->findModel($id);
+        $guard = $this->findLoginGuard($guardId, $id);
+        $guard->approve(Yii::$app->user->id, Yii::$app->request->post('admin_note', ''));
+        Yii::$app->session->setFlash('success', '已批准该用户从当前申请 IP 登录一次。');
+        return $this->redirect(['login-guard', 'id' => $id]);
+    }
+
+    public function actionRejectLogin($id, $guardId)
+    {
+        $this->findModel($id);
+        $guard = $this->findLoginGuard($guardId, $id);
+        $guard->reject(Yii::$app->user->id, Yii::$app->request->post('admin_note', ''));
+        Yii::$app->session->setFlash('success', '已拒绝该登录申请。');
+        return $this->redirect(['login-guard', 'id' => $id]);
+    }
+
+    /**
+     * Download contest solutions.
      */
     public function actionDownloadSolution($id)
     {
@@ -697,6 +756,15 @@ class ContestController extends Controller
     protected function findModel($id)
     {
         if (($model = Contest::findOne($id)) !== null) {
+            return $model;
+        }
+
+        throw new NotFoundHttpException('The requested page does not exist.');
+    }
+
+    protected function findLoginGuard($guardId, $contestId)
+    {
+        if (($model = ExamLoginGuard::findOne(['id' => $guardId, 'contest_id' => $contestId])) !== null) {
             return $model;
         }
 

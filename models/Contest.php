@@ -141,6 +141,7 @@ class Contest extends \yii\db\ActiveRecord
         Discuss::deleteAll(['entity' => Discuss::ENTITY_CONTEST, 'entity_id' => $this->id]);
         ContestPrint::deleteAll(['contest_id' => $this->id]);
         ContestAnnouncement::deleteAll(['contest_id' => $this->id]);
+        ExamLoginGuard::deleteAll(['contest_id' => $this->id]);
         return parent::beforeDelete();
     }
 
