@@ -4,6 +4,7 @@ namespace app\models;
 
 use Yii;
 use yii\db\Expression;
+use yii\db\IntegrityException;
 
 /**
  * ExamLoginGuard records and enforces contest-mode login restrictions.
@@ -40,6 +41,8 @@ class ExamLoginGuard extends ActiveRecord
     const STATUS_APPROVED = 3;
     const STATUS_USED = 4;
     const STATUS_REJECTED = 5;
+
+    private static $_activeContests = [];
 
     public static function tableName()
     {
@@ -112,29 +115,34 @@ class ExamLoginGuard extends ActiveRecord
 
     public static function getActiveContestForUser(User $user)
     {
+        $cacheKey = $user->id;
+        if (array_key_exists($cacheKey, self::$_activeContests)) {
+            return self::$_activeContests[$cacheKey];
+        }
+
         if ($user->isAdmin()) {
-            return null;
+            return self::$_activeContests[$cacheKey] = null;
         }
 
         if (!Yii::$app->setting->get('isContestMode')) {
-            return null;
+            return self::$_activeContests[$cacheKey] = null;
         }
 
         $contestId = intval(Yii::$app->setting->get('examContestId'));
         if ($contestId <= 0) {
-            return null;
+            return self::$_activeContests[$cacheKey] = null;
         }
 
         $contest = Contest::findOne($contestId);
         if ($contest === null || $contest->getRunStatus() != Contest::STATUS_RUNNING) {
-            return null;
+            return self::$_activeContests[$cacheKey] = null;
         }
 
         $inContest = ContestUser::find()
             ->where(['contest_id' => $contest->id, 'user_id' => $user->id])
             ->exists();
 
-        return $inContest ? $contest : null;
+        return self::$_activeContests[$cacheKey] = ($inContest ? $contest : null);
     }
 
     public static function isActiveForUser(User $user)
@@ -290,24 +298,6 @@ class ExamLoginGuard extends ActiveRecord
 
     public static function getClientIp()
     {
-        // The front proxy must overwrite these headers; otherwise they are spoofable.
-        $headers = Yii::$app->request->headers;
-        $ip = trim((string) $headers->get('X-Real-IP'));
-        if (self::isValidIp($ip)) {
-            return $ip;
-        }
-
-        $forwardedFor = $headers->get('X-Forwarded-For');
-        if (!empty($forwardedFor)) {
-            $parts = array_filter(array_map('trim', explode(',', $forwardedFor)));
-            $parts = array_reverse($parts);
-            foreach ($parts as $part) {
-                if (self::isValidIp($part)) {
-                    return $part;
-                }
-            }
-        }
-
         return Yii::$app->request->userIP;
     }
 
@@ -334,7 +324,16 @@ class ExamLoginGuard extends ActiveRecord
         $guard->status = self::STATUS_PENDING;
         $guard->approved_login_count = 0;
         $guard->used_login_count = 0;
-        $guard->save(false);
+
+        try {
+            $guard->save(false);
+        } catch (IntegrityException $e) {
+            $guard = self::findOne(['contest_id' => $contestId, 'user_id' => $userId]);
+            if ($guard !== null) {
+                return $guard;
+            }
+            throw $e;
+        }
 
         return $guard;
     }
@@ -351,11 +350,15 @@ class ExamLoginGuard extends ActiveRecord
         }
 
         list($subnet, $bits) = explode('/', $cidr);
-        $ipLong = sprintf('%u', ip2long($ip));
-        $subnetLong = sprintf('%u', ip2long($subnet));
-        $mask = -1 << (32 - intval($bits));
-        $subnetLong &= $mask;
+        $bits = intval($bits);
+        if ($bits < 0 || $bits > 32 || !self::isValidIp($subnet)) {
+            return false;
+        }
 
-        return ($ipLong & $mask) == $subnetLong;
+        $ipLong = ip2long($ip);
+        $subnetLong = ip2long($subnet);
+        $mask = $bits === 0 ? 0 : (-1 << (32 - $bits));
+
+        return ($ipLong & $mask) === ($subnetLong & $mask);
     }
 }

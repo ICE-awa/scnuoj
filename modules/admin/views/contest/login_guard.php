@@ -111,6 +111,25 @@ $this->title = $model->title . ' - 登录管控';
                 'headerOptions' => ['style' => 'min-width:130px;']
             ],
             [
+                'label' => '处理记录',
+                'format' => 'raw',
+                'value' => function ($guard) {
+                    if (empty($guard->handled_at)) {
+                        return '<span class="text-muted">无</span>';
+                    }
+                    $handler = $guard->handler === null
+                        ? $guard->handled_by
+                        : $guard->handler->username;
+                    $note = empty($guard->admin_note)
+                        ? '<span class="text-muted">无备注</span>'
+                        : Html::encode($guard->admin_note);
+                    return Html::encode($handler)
+                        . '<br><span class="text-muted">' . Html::encode($guard->handled_at) . '</span>'
+                        . '<br>' . $note;
+                },
+                'headerOptions' => ['style' => 'min-width:180px;']
+            ],
+            [
                 'label' => 'UA',
                 'format' => 'raw',
                 'value' => function ($guard) {
@@ -128,26 +147,38 @@ $this->title = $model->title . ' - 登录管控';
                 'label' => '操作',
                 'format' => 'raw',
                 'value' => function ($guard) use ($model) {
-                    $buttons = [];
+                    $forms = [];
                     if (!empty($guard->last_request_ip)) {
-                        $buttons[] = Html::a('批准一次', ['approve-login', 'id' => $model->id, 'guardId' => $guard->id], [
-                            'class' => 'btn btn-sm btn-outline-success',
-                            'data' => [
-                                'method' => 'post',
-                                'confirm' => '确认批准该用户从当前申请 IP 登录一次？',
-                            ],
-                        ]);
+                        $forms[] = Html::beginForm(['approve-login', 'id' => $model->id, 'guardId' => $guard->id], 'post', ['class' => 'form-inline mb-1'])
+                            . Html::textInput('admin_note', '', [
+                                'class' => 'form-control form-control-sm mr-1',
+                                'placeholder' => '备注',
+                                'style' => 'max-width:120px;'
+                            ])
+                            . Html::submitButton('批准一次', [
+                                'class' => 'btn btn-sm btn-outline-success',
+                                'data' => [
+                                    'confirm' => '确认批准该用户从当前申请 IP 登录一次？',
+                                ],
+                            ])
+                            . Html::endForm();
                     }
-                    $buttons[] = Html::a('拒绝', ['reject-login', 'id' => $model->id, 'guardId' => $guard->id], [
-                        'class' => 'btn btn-sm btn-outline-danger',
-                        'data' => [
-                            'method' => 'post',
-                            'confirm' => '确认拒绝该登录申请？',
-                        ],
-                    ]);
-                    return implode(' ', $buttons);
+                    $forms[] = Html::beginForm(['reject-login', 'id' => $model->id, 'guardId' => $guard->id], 'post', ['class' => 'form-inline'])
+                        . Html::textInput('admin_note', '', [
+                            'class' => 'form-control form-control-sm mr-1',
+                            'placeholder' => '备注',
+                            'style' => 'max-width:120px;'
+                        ])
+                        . Html::submitButton('拒绝', [
+                            'class' => 'btn btn-sm btn-outline-danger',
+                            'data' => [
+                                'confirm' => '确认拒绝该登录申请？',
+                            ],
+                        ])
+                        . Html::endForm();
+                    return implode('', $forms);
                 },
-                'headerOptions' => ['style' => 'min-width:150px;']
+                'headerOptions' => ['style' => 'min-width:230px;']
             ],
         ],
     ]) ?>
