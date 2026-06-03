@@ -182,14 +182,14 @@ class ContestController extends Controller
                 foreach ($users as $username) {
                     //　查找用户ID 以及查看是否已经加入比赛中
                     $username = trim($username);
-                    $query = (new Query())->select('u.id as user_id, count(c.user_id) as exist')
+                    $query = (new Query())->select('u.id as user_id, c.user_id as contest_user_id')
                         ->from('{{%user}} as u')
-                        ->leftJoin('{{%contest_user}} as c', 'c.user_id=u.id')
-                        ->where('u.username=:name and c.contest_id=:cid', [':name' => $username, ':cid' => $model->id])
+                        ->leftJoin('{{%contest_user}} as c', 'c.user_id=u.id and c.contest_id=:cid', [':cid' => $model->id])
+                        ->where('u.username=:name', [':name' => $username])
                         ->one();
                     if (!isset($query['user_id'])) {
                         $message .= $username . " 不存在该用户<br>";
-                    } else if (!$query['exist']) {
+                    } else if (!$query['contest_user_id']) {
                         Yii::$app->db->createCommand()->insert('{{%contest_user}}', [
                             'user_id' => $query['user_id'],
                             'contest_id' => $model->id,
@@ -450,14 +450,14 @@ class ContestController extends Controller
                 foreach ($users as $username) {
                     //　查找用户ID 以及查看是否已经加入比赛中
                     $username = trim($username);
-                    $query = (new Query())->select('u.id as user_id, count(c.user_id) as exist')
+                    $query = (new Query())->select('u.id as user_id, c.user_id as contest_user_id')
                         ->from('{{%user}} as u')
-                        ->leftJoin('{{%contest_user}} as c', 'c.user_id=u.id')
-                        ->where('u.username=:name and c.contest_id=:cid', [':name' => $username, ':cid' => $model->id])
+                        ->leftJoin('{{%contest_user}} as c', 'c.user_id=u.id and c.contest_id=:cid', [':cid' => $model->id])
+                        ->where('u.username=:name', [':name' => $username])
                         ->one();
                     if (!isset($query['user_id'])) {
                         $message .= $username . " 不存在该用户<br>";
-                    } else if (!$query['exist']) {
+                    } else if (!$query['contest_user_id']) {
                         // Yii::$app->db->createCommand()->insert('{{%contest_user}}', [
                         //     'user_id' => $query['user_id'],
                         //     'contest_id' => $model->id,
