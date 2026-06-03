@@ -11,6 +11,7 @@ use yii\helpers\Html;
 /* @var $isGuardEnabled boolean */
 /* @var $isGuardRunning boolean */
 /* @var $currentExamContestId integer */
+/* @var $allowedCidrs string */
 
 $this->title = $model->title . ' - 登录管控';
 ?>
@@ -50,7 +51,7 @@ $this->title = $model->title . ' - 登录管控';
         <?= Html::submitButton('启用本场登录管控', [
             'class' => 'btn btn-warning',
             'data' => [
-                'confirm' => '确认启用本场考试登录管控？启用后非机房 IP、再次登录、IP 变更都会等待管理员批准。',
+                'confirm' => '确认启用本场考试登录管控？启用后非准入 IP、再次登录、IP 变更都会等待管理员批准。',
             ],
         ]) ?>
         <?= Html::endForm() ?>
@@ -60,8 +61,25 @@ $this->title = $model->title . ' - 登录管控';
 
     <div class="alert alert-light">
         <i class="fas fa-fw fa-info-circle"></i>
-        考试模式下，参赛用户首次登录必须来自 <?= Html::encode(ExamLoginGuard::getLabCidr()) ?>。非机房网段、退出后再次登录、或 IP 变更都会被阻止并等待管理员批准。
+        考试模式下，参赛用户首次登录必须来自准入网段。非准入网段、退出后再次登录、或 IP 变更都会被阻止并等待管理员批准。
     </div>
+
+    <?= Html::beginForm(['update-login-guard-cidrs', 'id' => $model->id], 'post') ?>
+    <div class="form-group">
+        <label>准入网段</label>
+        <?= Html::textarea('allowed_cidrs', $allowedCidrs, [
+            'class' => 'form-control',
+            'rows' => 4,
+            'placeholder' => "10.191.0.0/16\n172.21.0.0/16",
+        ]) ?>
+        <small class="form-text text-muted">
+            每行一个 CIDR 或单个 IPv4。正式考试保留机房网段；本地 Docker 测试可以临时加入 172.21.0.0/16。
+        </small>
+    </div>
+    <?= Html::submitButton('保存准入网段', ['class' => 'btn btn-outline-primary']) ?>
+    <?= Html::endForm() ?>
+
+    <p></p>
 
     <?= Html::beginForm(['login-guard', 'id' => $model->id], 'get') ?>
     <div class="input-group">
@@ -132,8 +150,8 @@ $this->title = $model->title . ' - 登录管控';
                     }
                     $inLab = ExamLoginGuard::isLabIp($guard->last_request_ip);
                     $badge = $inLab
-                        ? '<span class="badge badge-primary">机房</span>'
-                        : '<span class="badge badge-danger">非机房</span>';
+                        ? '<span class="badge badge-primary">准入</span>'
+                        : '<span class="badge badge-danger">非准入</span>';
                     return Html::encode($guard->last_request_ip) . ' ' . $badge
                         . '<br><span class="text-muted">' . Html::encode($guard->last_request_at) . '</span>';
                 },

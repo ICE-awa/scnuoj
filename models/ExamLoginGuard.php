@@ -35,6 +35,7 @@ use yii\db\IntegrityException;
 class ExamLoginGuard extends ActiveRecord
 {
     const LAB_CIDR = '10.191.0.0/16';
+    const SETTING_ALLOWED_CIDRS = 'examAllowedCidrs';
     const ACTIVE_CONTEST_CACHE_DURATION = 10;
 
     const STATUS_ALLOWED = 1;
@@ -197,7 +198,7 @@ class ExamLoginGuard extends ActiveRecord
 
         $message = self::isLabIp($ip)
             ? '该账号已经在本场考试中登录过。再次登录需要等待管理员批准。'
-            : '当前 IP 不在机房网段，登录已被阻止。请联系管理员批准本次登录。';
+            : '当前 IP 不在准入网段，登录已被阻止。请联系管理员批准本次登录。';
 
         return false;
     }
@@ -319,12 +320,89 @@ class ExamLoginGuard extends ActiveRecord
 
     public static function isLabIp($ip)
     {
-        return self::ipInCidr($ip, self::getLabCidr());
+        foreach (self::getAllowedCidrs() as $cidr) {
+            if (self::ipInCidr($ip, $cidr)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static function getLabCidr()
     {
-        return Yii::$app->params['examLabCidr'] ?? self::LAB_CIDR;
+        return implode(', ', self::getAllowedCidrs());
+    }
+
+    public static function getAllowedCidrs()
+    {
+        $cidrs = [];
+        foreach (self::parseCidrs(self::getConfiguredAllowedCidrs()) as $cidr) {
+            if (self::isValidCidr($cidr)) {
+                $cidrs[] = $cidr;
+            }
+        }
+
+        return empty($cidrs) ? [self::LAB_CIDR] : array_values(array_unique($cidrs));
+    }
+
+    public static function getAllowedCidrsText()
+    {
+        return implode("\n", self::getAllowedCidrs());
+    }
+
+    public static function normalizeAllowedCidrs($value)
+    {
+        return implode("\n", array_values(array_unique(self::parseCidrs($value))));
+    }
+
+    public static function getInvalidCidrs($value)
+    {
+        $invalid = [];
+        foreach (self::parseCidrs($value) as $cidr) {
+            if (!self::isValidCidr($cidr)) {
+                $invalid[] = $cidr;
+            }
+        }
+        return $invalid;
+    }
+
+    public static function saveAllowedCidrs($value)
+    {
+        $normalized = self::normalizeAllowedCidrs($value);
+
+        Yii::$app->db->createCommand()->delete('{{%setting}}', [
+            'key' => self::SETTING_ALLOWED_CIDRS,
+        ])->execute();
+        Yii::$app->db->createCommand()->insert('{{%setting}}', [
+            'key' => self::SETTING_ALLOWED_CIDRS,
+            'value' => $normalized,
+        ])->execute();
+        Yii::$app->setting->clearCache();
+
+        return $normalized;
+    }
+
+    protected static function getConfiguredAllowedCidrs()
+    {
+        $value = Yii::$app->db->createCommand(
+            'SELECT [[value]] FROM {{%setting}} WHERE [[key]]=:key LIMIT 1',
+            [':key' => self::SETTING_ALLOWED_CIDRS]
+        )->queryScalar();
+
+        if ($value !== false && trim((string) $value) !== '') {
+            return $value;
+        }
+
+        $param = Yii::$app->params['examAllowedCidrs']
+            ?? Yii::$app->params['examLabCidr']
+            ?? self::LAB_CIDR;
+
+        return is_array($param) ? implode("\n", $param) : $param;
+    }
+
+    protected static function parseCidrs($value)
+    {
+        return preg_split('/[\s,;]+/', trim((string) $value), -1, PREG_SPLIT_NO_EMPTY);
     }
 
     protected static function findOrCreate($contestId, $userId)
@@ -365,9 +443,12 @@ class ExamLoginGuard extends ActiveRecord
             return false;
         }
 
-        $parts = explode('/', $cidr, 2);
+        $parts = explode('/', trim($cidr), 2);
         $subnet = $parts[0];
         $bits = $parts[1] ?? 32;
+        if (isset($parts[1]) && !ctype_digit($parts[1])) {
+            return false;
+        }
         $bits = intval($bits);
         if ($bits < 0 || $bits > 32 || !self::isValidIp($subnet)) {
             return false;
@@ -378,5 +459,24 @@ class ExamLoginGuard extends ActiveRecord
         $mask = $bits === 0 ? 0 : (-1 << (32 - $bits));
 
         return ($ipLong & $mask) === ($subnetLong & $mask);
+    }
+
+    protected static function isValidCidr($cidr)
+    {
+        $parts = explode('/', trim($cidr), 2);
+        if (!self::isValidIp($parts[0])) {
+            return false;
+        }
+
+        if (!isset($parts[1])) {
+            return true;
+        }
+
+        if (!ctype_digit($parts[1])) {
+            return false;
+        }
+
+        $bits = intval($parts[1]);
+        return $bits >= 0 && $bits <= 32;
     }
 }

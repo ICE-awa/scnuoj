@@ -41,6 +41,7 @@ class ContestController extends Controller
                     'delete' => ['post'],
                     'enable-login-guard' => ['post'],
                     'disable-login-guard' => ['post'],
+                    'update-login-guard-cidrs' => ['post'],
                     'approve-login' => ['post'],
                     'reject-login' => ['post'],
                 ],
@@ -558,7 +559,29 @@ class ContestController extends Controller
             'isGuardEnabled' => ExamLoginGuard::isEnabledForContest($model),
             'isGuardRunning' => $model->getRunStatus() == Contest::STATUS_RUNNING,
             'currentExamContestId' => intval(Yii::$app->setting->get('examContestId')),
+            'allowedCidrs' => ExamLoginGuard::getAllowedCidrsText(),
         ]);
+    }
+
+    public function actionUpdateLoginGuardCidrs($id)
+    {
+        $this->findModel($id);
+        $cidrs = Yii::$app->request->post('allowed_cidrs', '');
+        $invalidCidrs = ExamLoginGuard::getInvalidCidrs($cidrs);
+        if (!empty($invalidCidrs)) {
+            Yii::$app->session->setFlash('error', '准入网段格式错误：' . implode(', ', $invalidCidrs));
+            return $this->redirect(['login-guard', 'id' => $id]);
+        }
+
+        $normalized = ExamLoginGuard::normalizeAllowedCidrs($cidrs);
+        if ($normalized === '') {
+            Yii::$app->session->setFlash('error', '准入网段不能为空。');
+            return $this->redirect(['login-guard', 'id' => $id]);
+        }
+
+        ExamLoginGuard::saveAllowedCidrs($normalized);
+        Yii::$app->session->setFlash('success', '准入网段已更新。');
+        return $this->redirect(['login-guard', 'id' => $id]);
     }
 
     public function actionEnableLoginGuard($id)
@@ -570,7 +593,7 @@ class ContestController extends Controller
         ]);
 
         if ($model->getRunStatus() == Contest::STATUS_RUNNING) {
-            Yii::$app->session->setFlash('success', '已启用本场考试登录管控。非机房 IP、再次登录、IP 变更都会等待管理员批准。');
+            Yii::$app->session->setFlash('success', '已启用本场考试登录管控。非准入 IP、再次登录、IP 变更都会等待管理员批准。');
         } else {
             Yii::$app->session->setFlash('warning', '已启用本场考试登录管控，但比赛尚未处于进行中，登录限制会在比赛开始后生效。');
         }
