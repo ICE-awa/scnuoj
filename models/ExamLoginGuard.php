@@ -155,6 +155,12 @@ class ExamLoginGuard extends ActiveRecord
         return self::getActiveContestForUser($user) !== null;
     }
 
+    public static function isEnabledForContest(Contest $contest)
+    {
+        return Yii::$app->setting->get('isContestMode')
+            && intval(Yii::$app->setting->get('examContestId')) === intval($contest->id);
+    }
+
     public static function checkLoginAllowed(User $user, &$message = null)
     {
         $contest = self::getActiveContestForUser($user);

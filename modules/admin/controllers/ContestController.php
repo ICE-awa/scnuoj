@@ -39,6 +39,8 @@ class ContestController extends Controller
                 'class' => VerbFilter::class,
                 'actions' => [
                     'delete' => ['post'],
+                    'enable-login-guard' => ['post'],
+                    'disable-login-guard' => ['post'],
                     'approve-login' => ['post'],
                     'reject-login' => ['post'],
                 ],
@@ -553,7 +555,41 @@ class ContestController extends Controller
             'model' => $model,
             'dataProvider' => $dataProvider,
             'username' => $username,
+            'isGuardEnabled' => ExamLoginGuard::isEnabledForContest($model),
+            'isGuardRunning' => $model->getRunStatus() == Contest::STATUS_RUNNING,
+            'currentExamContestId' => intval(Yii::$app->setting->get('examContestId')),
         ]);
+    }
+
+    public function actionEnableLoginGuard($id)
+    {
+        $model = $this->findModel($id);
+        Yii::$app->setting->set([
+            'isContestMode' => 1,
+            'examContestId' => $model->id,
+        ]);
+
+        if ($model->getRunStatus() == Contest::STATUS_RUNNING) {
+            Yii::$app->session->setFlash('success', '已启用本场考试登录管控。非机房 IP、再次登录、IP 变更都会等待管理员批准。');
+        } else {
+            Yii::$app->session->setFlash('warning', '已启用本场考试登录管控，但比赛尚未处于进行中，登录限制会在比赛开始后生效。');
+        }
+
+        return $this->redirect(['login-guard', 'id' => $model->id]);
+    }
+
+    public function actionDisableLoginGuard($id)
+    {
+        $model = $this->findModel($id);
+        if (ExamLoginGuard::isEnabledForContest($model)) {
+            Yii::$app->setting->set([
+                'isContestMode' => 0,
+                'examContestId' => 0,
+            ]);
+            Yii::$app->session->setFlash('success', '已关闭本场考试登录管控。');
+        }
+
+        return $this->redirect(['login-guard', 'id' => $model->id]);
     }
 
     public function actionApproveLogin($id, $guardId)

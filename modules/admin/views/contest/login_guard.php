@@ -8,12 +8,55 @@ use yii\helpers\Html;
 /* @var $model app\models\Contest */
 /* @var $dataProvider yii\data\ActiveDataProvider */
 /* @var $username string */
+/* @var $isGuardEnabled boolean */
+/* @var $isGuardRunning boolean */
+/* @var $currentExamContestId integer */
 
 $this->title = $model->title . ' - 登录管控';
 ?>
 
 <div>
     <p class="lead">登录管控 <?= Html::encode($model->title) ?></p>
+
+    <?php if ($isGuardEnabled) : ?>
+        <div class="alert <?= $isGuardRunning ? 'alert-success' : 'alert-warning' ?>">
+            <i class="fas fa-fw fa-shield-alt"></i>
+            本场考试登录管控已开启。
+            <?php if ($isGuardRunning) : ?>
+                当前比赛正在进行，登录限制已生效。
+            <?php else : ?>
+                当前比赛未处于进行中，登录限制会在比赛开始后生效。
+            <?php endif; ?>
+            服务端当前识别 IP：<?= Html::encode(ExamLoginGuard::getClientIp()) ?>。
+        </div>
+        <?= Html::beginForm(['disable-login-guard', 'id' => $model->id], 'post') ?>
+        <?= Html::submitButton('关闭本场登录管控', [
+            'class' => 'btn btn-outline-danger',
+            'data' => [
+                'confirm' => '确认关闭本场考试登录管控？',
+            ],
+        ]) ?>
+        <?= Html::endForm() ?>
+    <?php else : ?>
+        <div class="alert alert-warning">
+            <i class="fas fa-fw fa-exclamation-triangle"></i>
+            本场考试登录管控未开启。仅查看本页面不会阻止学生登录。
+            <?php if ($currentExamContestId > 0) : ?>
+                当前全局单场比赛 ID 为 <?= Html::encode($currentExamContestId) ?>。
+            <?php endif; ?>
+            服务端当前识别 IP：<?= Html::encode(ExamLoginGuard::getClientIp()) ?>。
+        </div>
+        <?= Html::beginForm(['enable-login-guard', 'id' => $model->id], 'post') ?>
+        <?= Html::submitButton('启用本场登录管控', [
+            'class' => 'btn btn-warning',
+            'data' => [
+                'confirm' => '确认启用本场考试登录管控？启用后非机房 IP、再次登录、IP 变更都会等待管理员批准。',
+            ],
+        ]) ?>
+        <?= Html::endForm() ?>
+    <?php endif; ?>
+
+    <p></p>
 
     <div class="alert alert-light">
         <i class="fas fa-fw fa-info-circle"></i>
