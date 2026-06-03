@@ -1,19 +1,22 @@
 :80 {
-    root * /var/www/html/web
-    encode gzip
+	root * /var/www/html/web
+	encode gzip
 
-    @disallowed {
+	@disallowed {
 		path /index_test.php
 	}
 
 	try_files {path} {path}/ /index.php?{query}
 	rewrite @disallowed /index.php
 
-    php_fastcgi php:9000 {
-        root /var/www/html/web
-    }
+	php_fastcgi php:9000 {
+		root /var/www/html/web
+		env HTTP_X_FORWARDED_FOR {remote_host}
+		env HTTP_X_FORWARDED_HOST {host}
+		env HTTP_X_FORWARDED_PROTO {scheme}
+	}
 
-    file_server {
-        index index.html
-    }
+	file_server {
+		index index.html
+	}
 }

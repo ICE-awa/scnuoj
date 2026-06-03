@@ -18,8 +18,18 @@ return [
         'class' => app\components\Setting::class,
     ],
     // Configure trusted reverse proxies here before enabling exam IP restrictions.
-    // Example: ['172.18.0.0/16' => ['X-Forwarded-For']]
-    'trustedHosts' => [],
+    // Only trust headers from the Docker/Caddy hop, never directly from clients.
+    'trustedHosts' => [
+        '172.16.0.0/12' => [
+            'X-Forwarded-For',
+            'X-Forwarded-Host',
+            'X-Forwarded-Proto',
+            'X-Forwarded-Port',
+        ],
+    ],
+    'ipHeaders' => [
+        'X-Forwarded-For',
+    ],
     'examAllowedCidrs' => [
         '10.191.0.0/16',
     ],
