@@ -55,6 +55,11 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./:/var/www/html
+      - php_vendor:/var/www/html/vendor
+    environment:
+      DB_DSN: "mysql:host=mysql;dbname=scnuoj"
+      DB_USERNAME: "root"
+      DB_PASSWORD: "yourpassword"
     # ports:
     #   - "9000:9000"
     depends_on:
@@ -75,3 +80,6 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+
+volumes:
+  php_vendor:

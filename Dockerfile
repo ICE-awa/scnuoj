@@ -39,6 +39,8 @@ RUN composer install
 
 # 拷贝配置文件
 COPY  /conf.d/www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/php-entrypoint.sh /usr/local/bin/scnuoj-php-entrypoint
+RUN chmod +x /usr/local/bin/scnuoj-php-entrypoint
 
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 RUN sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 100M/' "$PHP_INI_DIR/php.ini" \
@@ -48,4 +50,4 @@ RUN mkdir -p /var/log/php-fpm
 RUN ln -sf /dev/stdout /var/log/php-fpm/error.log
 
 WORKDIR /var/www/html
-CMD ["sh", "-c","cp -fr /var/composer/vendor /var/www/html && php-fpm"]
+CMD ["scnuoj-php-entrypoint"]
