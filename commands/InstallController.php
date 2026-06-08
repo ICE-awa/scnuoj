@@ -39,6 +39,7 @@ class InstallController extends Controller
         echo " SCNU Online Judge Docker Auto Initialization\n";
         echo "================================================\n\n";
 
+        $this->setAutoInstallDefaults();
         $this->prepareEnvironment();
         $this->configureJudgeAndPolygon();
 
@@ -47,8 +48,6 @@ class InstallController extends Controller
             $this->startSocket();
             return 0;
         }
-
-        $this->setAutoInstallDefaults();
 
         echo "\n================================================";
         echo "\nDatabase is empty. Run: php yii migrate --interactive=0";
@@ -91,17 +90,24 @@ class InstallController extends Controller
     private function configureJudgeAndPolygon()
     {
         $parts = $this->parseDsn(Yii::$app->db->dsn);
-        $host = $parts['host'] ?? 'mysql';
+        $socket = trim((string) getenv('SCNUOJ_JUDGE_DB_SOCKET'));
+        $host = $socket === ''
+            ? ($parts['host'] ?? 'mysql')
+            : (getenv('SCNUOJ_JUDGE_DB_HOST') ?: 'localhost');
         $dbname = $parts['dbname'] ?? 'scnuoj';
 
         $this->setConfig('judge/config.ini', 'OJ_HOST_NAME', $host);
         $this->setConfig('judge/config.ini', 'OJ_USER_NAME', Yii::$app->db->username);
         $this->setConfig('judge/config.ini', 'OJ_PASSWORD', Yii::$app->db->password);
         $this->setConfig('judge/config.ini', 'OJ_DB_NAME', $dbname);
+        $this->setConfig('judge/config.ini', 'OJ_MYSQL_UNIX_PORT', $socket);
+        $this->setOptionalConfig('judge/config.ini', 'OJ_USE_PTRACE', getenv('SCNUOJ_JUDGE_USE_PTRACE'));
         $this->setConfig('polygon/config.ini', 'OJ_HOST_NAME', $host);
         $this->setConfig('polygon/config.ini', 'OJ_USER_NAME', Yii::$app->db->username);
         $this->setConfig('polygon/config.ini', 'OJ_PASSWORD', Yii::$app->db->password);
         $this->setConfig('polygon/config.ini', 'OJ_DB_NAME', $dbname);
+        $this->setConfig('polygon/config.ini', 'OJ_MYSQL_UNIX_PORT', $socket);
+        $this->setOptionalConfig('polygon/config.ini', 'OJ_USE_PTRACE', getenv('SCNUOJ_JUDGE_USE_PTRACE'));
     }
 
     private function isDatabaseInitialized()
@@ -121,6 +127,8 @@ class InstallController extends Controller
             'SCNUOJ_ADMIN_USERNAME' => self::DEFAULT_ADMIN_USERNAME,
             'SCNUOJ_ADMIN_PASSWORD' => self::DEFAULT_ADMIN_PASSWORD,
             'SCNUOJ_ADMIN_EMAIL' => self::DEFAULT_ADMIN_EMAIL,
+            'SCNUOJ_JUDGE_DB_SOCKET' => '/judge/mysqld/mysqld.sock',
+            'SCNUOJ_JUDGE_USE_PTRACE' => '0',
         ];
 
         foreach ($defaults as $name => $value) {
@@ -178,8 +186,23 @@ class InstallController extends Controller
     private function setConfig($file, $key, $value)
     {
         $str = file_get_contents($file);
-        $str2 = preg_replace("/" . $key . "=(.*)/", $key . "=" . $value, $str);
+        $line = $key . "=" . $value;
+        $pattern = "/^#?" . preg_quote($key, "/") . "=.*/m";
+        if (preg_match($pattern, $str)) {
+            $str2 = preg_replace($pattern, $line, $str);
+        } else {
+            $str2 = rtrim($str) . "\n" . $line . "\n";
+        }
         file_put_contents($file, $str2);
+    }
+
+    private function setOptionalConfig($file, $key, $value)
+    {
+        if ($value === false || trim((string) $value) === '') {
+            return;
+        }
+
+        $this->setConfig($file, $key, trim((string) $value));
     }
 
     private function setWritable($root, $paths)

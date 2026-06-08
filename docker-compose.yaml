@@ -63,6 +63,8 @@ services:
       SCNUOJ_ADMIN_USERNAME: "admin"
       SCNUOJ_ADMIN_PASSWORD: "admin"
       SCNUOJ_ADMIN_EMAIL: "admin@localhost"
+      SCNUOJ_JUDGE_DB_SOCKET: "/judge/mysqld/mysqld.sock"
+      SCNUOJ_JUDGE_USE_PTRACE: "0"
     # ports:
     #   - "9000:9000"
     depends_on:

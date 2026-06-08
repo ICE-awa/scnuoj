@@ -24,6 +24,6 @@ SCNUOJ_ADMIN_PASSWORD
 SCNUOJ_ADMIN_EMAIL
 ```
 
-The judge container starts `dispatcher` and `polygon` with `-o` by default.
+The judge container starts `dispatcher` and `polygon` with `-o` by default. In Docker, the judge database connection uses `/judge/mysqld/mysqld.sock` and disables `OJ_USE_PTRACE` by default to avoid network isolation and syscall compatibility issues.
 
 New contests created from the admin contest page default to OI. After a contest is created successfully, the system automatically enables the exam login-guard mode and points `examContestId` to that new contest.
