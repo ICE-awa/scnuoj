@@ -691,8 +691,13 @@ class ContestController extends Controller
     public function actionCreate()
     {
         $model = new Contest();
+        $model->type = Contest::TYPE_OI;
 
         if ($model->load(Yii::$app->request->post()) && $model->save()) {
+            Yii::$app->setting->set([
+                'isContestMode' => 1,
+                'examContestId' => $model->id,
+            ]);
             return $this->redirect(['view', 'id' => $model->id]);
         }
 

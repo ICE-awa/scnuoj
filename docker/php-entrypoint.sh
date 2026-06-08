@@ -28,4 +28,7 @@ if [ ! -f "${VENDOR_DST}/autoload.php" ] || [ "$current_hash" != "$installed_has
     fi
 fi
 
+echo "Checking SCNUOJ database initialization..."
+php yii install/auto
+
 exec php-fpm

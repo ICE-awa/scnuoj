@@ -34,12 +34,9 @@ class m180401_030422_import_initial_table extends BaseMigration
 
 
         // 输入管理员信息
-        fwrite(STDOUT, 'Enter Administrator\'s name:');
-        $username = trim(fgets(STDIN));
-        fwrite(STDOUT, 'Enter Administrator\'s password:');
-        $password = trim(fgets(STDIN));
-        fwrite(STDOUT, 'Enter Administrator\'s email:');
-        $email = trim(fgets(STDIN));
+        $username = $this->readAdminValue('SCNUOJ_ADMIN_USERNAME', 'Enter Administrator\'s name:', 'admin');
+        $password = $this->readAdminValue('SCNUOJ_ADMIN_PASSWORD', 'Enter Administrator\'s password:', 'admin');
+        $email = $this->readAdminValue('SCNUOJ_ADMIN_EMAIL', 'Enter Administrator\'s email:', 'admin@localhost');
         $password_hash = (new Security)->generatePasswordHash($password);
         $auth_key = (new Security())->generateRandomString();
         $time = date("Y-m-d H:i:s");
@@ -240,5 +237,24 @@ class m180401_030422_import_initial_table extends BaseMigration
         $this->dropTable('{{%user_profile}}');
         $this->dropTable('{{%user}}');
         $this->dropTable('{{%setting}}');
+    }
+
+    private function readAdminValue($envName, $prompt, $default)
+    {
+        $value = getenv($envName);
+        if ($value !== false && trim((string) $value) !== '') {
+            return trim((string) $value);
+        }
+
+        $autoInstall = getenv('SCNUOJ_AUTO_INSTALL');
+        if ($autoInstall !== false && $autoInstall !== '' && $autoInstall !== '0') {
+            return $default;
+        }
+
+        fwrite(STDOUT, $prompt);
+        $input = fgets(STDIN);
+        $value = $input === false ? '' : trim($input);
+
+        return $value === '' ? $default : $value;
     }
 }

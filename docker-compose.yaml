@@ -60,6 +60,9 @@ services:
       DB_DSN: "mysql:host=mysql;dbname=scnuoj"
       DB_USERNAME: "root"
       DB_PASSWORD: "yourpassword"
+      SCNUOJ_ADMIN_USERNAME: "admin"
+      SCNUOJ_ADMIN_PASSWORD: "admin"
+      SCNUOJ_ADMIN_EMAIL: "admin@localhost"
     # ports:
     #   - "9000:9000"
     depends_on:
