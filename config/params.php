@@ -21,13 +21,25 @@ return [
     // Only trust headers from the Docker/Caddy hop, never directly from clients.
     'trustedHosts' => [
         '172.16.0.0/12' => [
+            'X-Real-IP',
             'X-Forwarded-For',
             'X-Forwarded-Host',
             'X-Forwarded-Proto',
             'X-Forwarded-Port',
         ],
     ],
+    'secureHeaders' => [
+        'X-Real-IP',
+        'X-Forwarded-For',
+        'X-Forwarded-Host',
+        'X-Forwarded-Proto',
+        'X-Forwarded-Port',
+        'Front-End-Https',
+        'X-Rewrite-Url',
+        'X-Original-Host',
+    ],
     'ipHeaders' => [
+        'X-Real-IP',
         'X-Forwarded-For',
     ],
     'examAllowedCidrs' => [
