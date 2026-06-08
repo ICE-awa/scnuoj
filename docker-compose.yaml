@@ -5,7 +5,7 @@ services:
     image: phpmyadmin/phpmyadmin
     container_name: myadmin
     ports:
-      - 8888:80
+      - 127.0.0.1:58288:80
     environment:
       UPLOAD_LIMIT: 512M
       MEMORY_LIMIT: 1024M
@@ -37,8 +37,8 @@ services:
     container_name: caddy
     restart: always
     ports:
-      - 80:80
-      - 443:443
+      - 127.0.0.1:58200:80
+      - 127.0.0.1:58243:443
     volumes:
       - ./conf.d/Caddyfile:/etc/caddy/Caddyfile
       - ./:/var/www/html
