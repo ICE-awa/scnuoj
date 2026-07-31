@@ -2,9 +2,9 @@
 
 return [
     'class' => 'yii\db\Connection',
-    'dsn' => 'mysql:host=localhost;dbname=scnuoj',
-    'username' => 'socoding',
-    'password' => 'socoding',
+    'dsn' => getenv('DB_DSN') ?: 'mysql:host=localhost;dbname=scnuoj',
+    'username' => getenv('DB_USERNAME') ?: 'socoding',
+    'password' => getenv('DB_PASSWORD') ?: 'socoding',
     'charset' => 'utf8',
 
     // Schema cache options (for production environment)

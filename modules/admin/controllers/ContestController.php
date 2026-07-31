@@ -12,6 +12,7 @@ use yii\filters\VerbFilter;
 use yii\db\Expression;
 use app\components\AccessRule;
 use app\models\ContestAnnouncement;
+use app\models\ExamLoginGuard;
 use app\models\User;
 use app\models\ContestUser;
 use app\models\Problem;
@@ -38,6 +39,11 @@ class ContestController extends Controller
                 'class' => VerbFilter::class,
                 'actions' => [
                     'delete' => ['post'],
+                    'enable-login-guard' => ['post'],
+                    'disable-login-guard' => ['post'],
+                    'update-login-guard-cidrs' => ['post'],
+                    'approve-login' => ['post'],
+                    'reject-login' => ['post'],
                 ],
             ],
             'access' => [
@@ -179,14 +185,14 @@ class ContestController extends Controller
                 foreach ($users as $username) {
                     //　查找用户ID 以及查看是否已经加入比赛中
                     $username = trim($username);
-                    $query = (new Query())->select('u.id as user_id, count(c.user_id) as exist')
+                    $query = (new Query())->select('u.id as user_id, c.user_id as contest_user_id')
                         ->from('{{%user}} as u')
-                        ->leftJoin('{{%contest_user}} as c', 'c.user_id=u.id')
-                        ->where('u.username=:name and c.contest_id=:cid', [':name' => $username, ':cid' => $model->id])
+                        ->leftJoin('{{%contest_user}} as c', 'c.user_id=u.id and c.contest_id=:cid', [':cid' => $model->id])
+                        ->where('u.username=:name', [':name' => $username])
                         ->one();
                     if (!isset($query['user_id'])) {
                         $message .= $username . " 不存在该用户<br>";
-                    } else if (!$query['exist']) {
+                    } else if (!$query['contest_user_id']) {
                         Yii::$app->db->createCommand()->insert('{{%contest_user}}', [
                             'user_id' => $query['user_id'],
                             'contest_id' => $model->id,
@@ -447,14 +453,14 @@ class ContestController extends Controller
                 foreach ($users as $username) {
                     //　查找用户ID 以及查看是否已经加入比赛中
                     $username = trim($username);
-                    $query = (new Query())->select('u.id as user_id, count(c.user_id) as exist')
+                    $query = (new Query())->select('u.id as user_id, c.user_id as contest_user_id')
                         ->from('{{%user}} as u')
-                        ->leftJoin('{{%contest_user}} as c', 'c.user_id=u.id')
-                        ->where('u.username=:name and c.contest_id=:cid', [':name' => $username, ':cid' => $model->id])
+                        ->leftJoin('{{%contest_user}} as c', 'c.user_id=u.id and c.contest_id=:cid', [':cid' => $model->id])
+                        ->where('u.username=:name', [':name' => $username])
                         ->one();
                     if (!isset($query['user_id'])) {
                         $message .= $username . " 不存在该用户<br>";
-                    } else if (!$query['exist']) {
+                    } else if (!$query['contest_user_id']) {
                         // Yii::$app->db->createCommand()->insert('{{%contest_user}}', [
                         //     'user_id' => $query['user_id'],
                         //     'contest_id' => $model->id,
@@ -516,7 +522,119 @@ class ContestController extends Controller
     }
 
     /**
-     * 下载比赛期间提交记录
+     * Exam login guard.
+     */
+    public function actionLoginGuard($id)
+    {
+        $model = $this->findModel($id);
+        $query = ExamLoginGuard::find()
+            ->where(['contest_id' => $model->id])
+            ->with(['user', 'handler'])
+            ->orderBy([
+                '{{%exam_login_guard}}.status' => SORT_ASC,
+                '{{%exam_login_guard}}.updated_at' => SORT_DESC,
+                '{{%exam_login_guard}}.id' => SORT_DESC,
+            ]);
+
+        $username = trim(Yii::$app->request->get('username', ''));
+        if ($username !== '') {
+            $query->joinWith('user')
+                ->andWhere(['or',
+                    ['like', '{{%user}}.username', $username],
+                    ['like', '{{%user}}.nickname', $username],
+                ]);
+        }
+
+        $dataProvider = new ActiveDataProvider([
+            'query' => $query,
+            'pagination' => [
+                'pageSize' => 100
+            ]
+        ]);
+
+        return $this->render('login_guard', [
+            'model' => $model,
+            'dataProvider' => $dataProvider,
+            'username' => $username,
+            'isGuardEnabled' => ExamLoginGuard::isEnabledForContest($model),
+            'isGuardRunning' => $model->getRunStatus() == Contest::STATUS_RUNNING,
+            'currentExamContestId' => intval(Yii::$app->setting->get('examContestId')),
+            'allowedCidrs' => ExamLoginGuard::getAllowedCidrsText(),
+        ]);
+    }
+
+    public function actionUpdateLoginGuardCidrs($id)
+    {
+        $this->findModel($id);
+        $cidrs = Yii::$app->request->post('allowed_cidrs', '');
+        $invalidCidrs = ExamLoginGuard::getInvalidCidrs($cidrs);
+        if (!empty($invalidCidrs)) {
+            Yii::$app->session->setFlash('error', '准入网段格式错误：' . implode(', ', $invalidCidrs));
+            return $this->redirect(['login-guard', 'id' => $id]);
+        }
+
+        $normalized = ExamLoginGuard::normalizeAllowedCidrs($cidrs);
+        if ($normalized === '') {
+            Yii::$app->session->setFlash('error', '准入网段不能为空。');
+            return $this->redirect(['login-guard', 'id' => $id]);
+        }
+
+        ExamLoginGuard::saveAllowedCidrs($normalized);
+        Yii::$app->session->setFlash('success', '准入网段已更新。');
+        return $this->redirect(['login-guard', 'id' => $id]);
+    }
+
+    public function actionEnableLoginGuard($id)
+    {
+        $model = $this->findModel($id);
+        Yii::$app->setting->set([
+            'isContestMode' => 1,
+            'examContestId' => $model->id,
+        ]);
+
+        if ($model->getRunStatus() == Contest::STATUS_RUNNING) {
+            Yii::$app->session->setFlash('success', '已启用本场考试登录管控。非准入 IP、再次登录、IP 变更都会等待管理员批准。');
+        } else {
+            Yii::$app->session->setFlash('warning', '已启用本场考试登录管控，但比赛尚未处于进行中，登录限制会在比赛开始后生效。');
+        }
+
+        return $this->redirect(['login-guard', 'id' => $model->id]);
+    }
+
+    public function actionDisableLoginGuard($id)
+    {
+        $model = $this->findModel($id);
+        if (ExamLoginGuard::isEnabledForContest($model)) {
+            Yii::$app->setting->set([
+                'isContestMode' => 0,
+                'examContestId' => 0,
+            ]);
+            Yii::$app->session->setFlash('success', '已关闭本场考试登录管控。');
+        }
+
+        return $this->redirect(['login-guard', 'id' => $model->id]);
+    }
+
+    public function actionApproveLogin($id, $guardId)
+    {
+        $this->findModel($id);
+        $guard = $this->findLoginGuard($guardId, $id);
+        $guard->approve(Yii::$app->user->id, Yii::$app->request->post('admin_note', ''));
+        Yii::$app->session->setFlash('success', '已批准该用户从当前申请 IP 登录一次。');
+        return $this->redirect(['login-guard', 'id' => $id]);
+    }
+
+    public function actionRejectLogin($id, $guardId)
+    {
+        $this->findModel($id);
+        $guard = $this->findLoginGuard($guardId, $id);
+        $guard->reject(Yii::$app->user->id, Yii::$app->request->post('admin_note', ''));
+        Yii::$app->session->setFlash('success', '已拒绝该登录申请。');
+        return $this->redirect(['login-guard', 'id' => $id]);
+    }
+
+    /**
+     * Download contest solutions.
      */
     public function actionDownloadSolution($id)
     {
@@ -573,8 +691,13 @@ class ContestController extends Controller
     public function actionCreate()
     {
         $model = new Contest();
+        $model->type = Contest::TYPE_OI;
 
         if ($model->load(Yii::$app->request->post()) && $model->save()) {
+            Yii::$app->setting->set([
+                'isContestMode' => 1,
+                'examContestId' => $model->id,
+            ]);
             return $this->redirect(['view', 'id' => $model->id]);
         }
 
@@ -697,6 +820,15 @@ class ContestController extends Controller
     protected function findModel($id)
     {
         if (($model = Contest::findOne($id)) !== null) {
+            return $model;
+        }
+
+        throw new NotFoundHttpException('The requested page does not exist.');
+    }
+
+    protected function findLoginGuard($guardId, $contestId)
+    {
+        if (($model = ExamLoginGuard::findOne(['id' => $guardId, 'contest_id' => $contestId])) !== null) {
             return $model;
         }
 

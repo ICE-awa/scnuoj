@@ -21,6 +21,7 @@ $problems = $model->problems;
     <p class="lead">设置比赛 <?= Html::encode($model->title) ?>。</p>
     <div class="d-none d-lg-block">
         <div class="btn-block btn-group">
+            <?= Html::a('登录管控', ['login-guard', 'id' => $model->id], ['class' => 'btn btn-outline-warning']) ?>
             <?= Html::a('选手', ['register', 'id' => $model->id], ['class' => 'btn btn-outline-primary']) ?>
             <?= Html::a('题册', ['print', 'id' => $model->id], ['class' => 'btn btn-outline-primary', 'target' => '_blank']) ?>
             <?= Html::a('题解', ['editorial', 'id' => $model->id], ['class' => 'btn btn-outline-primary']) ?>
@@ -72,6 +73,7 @@ $problems = $model->problems;
     </div>
     <div class="d-lg-none">
         <div class="btn-block btn-group">
+            <?= Html::a('登录管控', ['login-guard', 'id' => $model->id], ['class' => 'btn btn-outline-warning']) ?>
             <?= Html::a('选手', ['register', 'id' => $model->id], ['class' => 'btn btn-outline-primary']) ?>
             <?= Html::a('题册', ['print', 'id' => $model->id], ['class' => 'btn btn-outline-primary', 'target' => '_blank']) ?>
             <?= Html::a('题解', ['editorial', 'id' => $model->id], ['class' => 'btn btn-outline-primary']) ?>

@@ -5,7 +5,7 @@ services:
     image: phpmyadmin/phpmyadmin
     container_name: myadmin
     ports:
-      - 8888:80
+      - 127.0.0.1:58288:80
     environment:
       UPLOAD_LIMIT: 512M
       MEMORY_LIMIT: 1024M
@@ -37,8 +37,8 @@ services:
     container_name: caddy
     restart: always
     ports:
-      - 80:80
-      - 443:443
+      - 127.0.0.1:58200:80
+      - 127.0.0.1:58243:443
     volumes:
       - ./conf.d/Caddyfile:/etc/caddy/Caddyfile
       - ./:/var/www/html
@@ -55,6 +55,16 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./:/var/www/html
+      - php_vendor:/var/www/html/vendor
+    environment:
+      DB_DSN: "mysql:host=mysql;dbname=scnuoj"
+      DB_USERNAME: "root"
+      DB_PASSWORD: "yourpassword"
+      SCNUOJ_ADMIN_USERNAME: "admin"
+      SCNUOJ_ADMIN_PASSWORD: "admin"
+      SCNUOJ_ADMIN_EMAIL: "admin@localhost"
+      SCNUOJ_JUDGE_DB_SOCKET: "/judge/mysqld/mysqld.sock"
+      SCNUOJ_JUDGE_USE_PTRACE: "0"
     # ports:
     #   - "9000:9000"
     depends_on:
@@ -75,3 +85,6 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+
+volumes:
+  php_vendor:

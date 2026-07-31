@@ -2,6 +2,7 @@
 
 namespace app\components;
 
+use app\models\ExamLoginGuard;
 use Yii;
 use yii\web\Controller;
 
@@ -16,6 +17,25 @@ class BaseController extends Controller
     {
         parent::init();
         $this->setLanguage();
+    }
+
+    public function beforeAction($action)
+    {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
+        if (!Yii::$app->user->isGuest) {
+            $message = null;
+            if (!ExamLoginGuard::ensureCurrentSession(Yii::$app->user->identity, $message)) {
+                Yii::$app->user->logout();
+                Yii::$app->session->setFlash('error', $message);
+                $this->redirect(['/site/login']);
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
